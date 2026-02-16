@@ -1,21 +1,13 @@
 #!/usr/bin/env python3
 """
-NYT Crossplay Bot — Screen-Reading Best-Move Finder
-====================================================
-Captures your screen, reads the Crossplay board & rack via OCR,
-then computes and displays the highest-scoring legal move.
+Crossplay Bot
 
-Requirements:
-    pip install mss Pillow pytesseract opencv-python numpy
+Reads the board state from your screen (or manual input) and finds
+the highest-scoring move. Uses Tesseract OCR for screen reading
+and a trie-backed move engine for fast word search.
 
-Also requires Tesseract OCR installed:
-    - macOS:   brew install tesseract
-    - Ubuntu:  sudo apt install tesseract-ocr
-    - Windows: https://github.com/UB-Mannheim/tesseract/wiki
-
-Usage:
-    python crossplay_bot.py              # Full GUI mode
-    python crossplay_bot.py --manual     # Manual board entry (no OCR)
+Requires: pip install mss Pillow pytesseract opencv-python numpy
+Also needs Tesseract OCR (brew install tesseract on macOS).
 """
 
 from __future__ import annotations
@@ -27,9 +19,7 @@ import string
 import time
 
 
-# ═══════════════════════════════════════════════════════════════════
-# LOGGING
-# ═══════════════════════════════════════════════════════════════════
+# Logging setup
 
 logging.basicConfig(
     level=logging.INFO,
@@ -47,9 +37,7 @@ __all__ = [
     "TrieNode",
 ]
 
-# ═══════════════════════════════════════════════════════════════════
-# CROSSPLAY GAME CONSTANTS
-# ═══════════════════════════════════════════════════════════════════
+# Game constants
 
 BOARD_SIZE = 15
 CENTER = 7  # 0-indexed center square
@@ -88,12 +76,10 @@ BONUS_GRID: list[list[str]] = [
 SWEEP_BONUS = 40  # 40 points for using all 7 tiles in one turn
 
 
-# ═══════════════════════════════════════════════════════════════════
-# TRIE — fast prefix lookup for the dictionary
-# ═══════════════════════════════════════════════════════════════════
+# Trie for prefix lookups
 
 class TrieNode:
-    """A node in the prefix trie used for fast word/prefix lookup."""
+    """Single node in the prefix trie."""
 
     __slots__ = ("children", "is_terminal")
 
@@ -103,7 +89,7 @@ class TrieNode:
 
 
 class Trie:
-    """Prefix trie for O(k) word and prefix lookup (k = word length)."""
+    """Prefix trie for fast word and prefix checks."""
 
     def __init__(self):
         self.root = TrieNode()
@@ -132,12 +118,10 @@ class Trie:
         return node
 
 
-# ═══════════════════════════════════════════════════════════════════
-# DICTIONARY — loads a word list for move validation
-# ═══════════════════════════════════════════════════════════════════
+# Dictionary / word list
 
 class Dictionary:
-    """Loads a word list and exposes both set-lookup and prefix-trie."""
+    """Word list with both set-lookup and trie-based prefix search."""
 
     def __init__(self, dict_path: str | None = None):
         self.words: set[str] = set()
@@ -213,16 +197,11 @@ class Dictionary:
         return self.is_valid(word)
 
 
-# ═══════════════════════════════════════════════════════════════════
-# BOARD — represents the 15x15 Crossplay game board
-# ═══════════════════════════════════════════════════════════════════
+# Board
 
 class Board:
-    """15x15 Crossplay game board.
-
-    Each cell is ``None`` (empty), ``'A'``-``'Z'`` (regular tile),
-    or lowercase ``'a'``-``'z'`` (blank tile used as that letter).
-    """
+    """15x15 game board. Cells are None (empty), 'A'-'Z' (tile),
+    or lowercase 'a'-'z' (blank used as that letter)."""
 
     def __init__(self):
         self.cells: list[list[str | None]] = [
@@ -230,26 +209,26 @@ class Board:
         ]
 
     def get(self, row: int, col: int) -> str | None:
-        """Return the letter at *(row, col)*, or ``None`` if empty/out-of-bounds."""
+        """Letter at (row, col), or None."""
         if 0 <= row < BOARD_SIZE and 0 <= col < BOARD_SIZE:
             return self.cells[row][col]
         return None
 
     def set(self, row: int, col: int, letter: str | None) -> None:
-        """Place *letter* at *(row, col)*, or clear the cell with ``None``."""
+        """Place a letter or clear the cell."""
         if 0 <= row < BOARD_SIZE and 0 <= col < BOARD_SIZE:
             self.cells[row][col] = letter
 
     def is_empty(self, row: int, col: int) -> bool:
-        """Return ``True`` if the cell at *(row, col)* has no tile."""
+        """True if no tile at (row, col)."""
         return self.get(row, col) is None
 
     def is_occupied(self, row: int, col: int) -> bool:
-        """Return ``True`` if the cell at *(row, col)* has a tile."""
+        """True if there's a tile at (row, col)."""
         return not self.is_empty(row, col)
 
     def is_board_empty(self) -> bool:
-        """Return ``True`` if every cell on the board is empty."""
+        """True if no tiles on the board."""
         return all(
             self.cells[r][c] is None
             for r in range(BOARD_SIZE)
@@ -257,20 +236,20 @@ class Board:
         )
 
     def count_tiles(self) -> int:
-        """Return the total number of occupied cells."""
+        """Number of tiles on the board."""
         return sum(
             1 for r in range(BOARD_SIZE) for c in range(BOARD_SIZE)
             if self.is_occupied(r, c)
         )
 
     def get_bonus(self, row: int, col: int) -> str | None:
-        """Return the bonus type if the square is still uncovered."""
+        """Bonus type at (row, col) if uncovered, else None."""
         if self.is_occupied(row, col):
             return None
         return BONUS_GRID[row][col]
 
     def copy(self) -> "Board":
-        """Return a shallow copy of the board."""
+        """Shallow copy of the board."""
         b = Board()
         for r in range(BOARD_SIZE):
             b.cells[r] = self.cells[r][:]
@@ -296,12 +275,10 @@ class Board:
         return "\n".join(lines)
 
 
-# ═══════════════════════════════════════════════════════════════════
-# MOVE — a single scored move
-# ═══════════════════════════════════════════════════════════════════
+# Move
 
 class Move:
-    """A placed word: position, direction, score, and metadata."""
+    """Represents a single scored move on the board."""
 
     __slots__ = (
         "word", "row", "col", "direction", "score",
@@ -336,28 +313,20 @@ class Move:
         return f"{self.word} at ({self.row},{self.col}) {arrow} = {self.score} pts{sweep}"
 
 
-# ═══════════════════════════════════════════════════════════════════
-# MOVE ENGINE — anchor-based move generation with trie pruning
-# ═══════════════════════════════════════════════════════════════════
+# Move engine
 
 class MoveEngine:
-    """
-    Generates all legal moves for a given board state and rack.
-
-    Uses anchor-based generation with trie-guided prefix pruning,
-    similar to the Appel-Jacobson algorithm used in competitive
-    Scrabble programs.  This avoids the combinatorial explosion of
-    brute-force permutations.
-    """
+    """Finds legal moves using anchor-based generation with trie pruning
+    (similar to the Appel-Jacobson algorithm)."""
 
     def __init__(self, dictionary: Dictionary):
         self.dict = dictionary
         self.trie = dictionary.trie
 
-    # -- public API ---------------------------------------------------
+    # public API
 
     def find_best_moves(self, board: Board, rack: list[str], top_n: int = 10) -> list[Move]:
-        """Return the *top_n* highest-scoring legal moves."""
+        """Top N highest-scoring legal moves."""
         all_moves = self._generate_all_moves(board, rack)
         # Deduplicate (same word + same position + same direction)
         seen: set[tuple[str, int, int, str]] = set()
@@ -370,7 +339,7 @@ class MoveEngine:
         unique.sort(key=lambda m: m.score, reverse=True)
         return unique[:top_n]
 
-    # -- move generation ----------------------------------------------
+    # move generation
 
     def _generate_all_moves(self, board: Board, rack: list[str]) -> list[Move]:
         moves: list[Move] = []
@@ -463,7 +432,7 @@ class MoveEngine:
             moves.extend(self._try_placements(board, rack, start_r, start_c, direction, length))
         return moves
 
-    # -- placement with trie-guided search ----------------------------
+    # placement with trie-guided search
 
     def _try_placements(
         self,
@@ -474,11 +443,8 @@ class MoveEngine:
         direction: str,
         length: int,
     ) -> list[Move]:
-        """
-        Use recursive trie-guided search to enumerate valid words of
-        *length* starting at *(start_r, start_c)* going in *direction*,
-        consuming tiles only from *rack*.
-        """
+        """Try filling a word of given length at the start position using
+        recursive trie-guided search, consuming only rack tiles."""
         dr = 1 if direction == "V" else 0
         dc = 1 if direction == "H" else 0
 
@@ -562,7 +528,7 @@ class MoveEngine:
         _fill(0, self.trie.root, [])
         return moves
 
-    # -- scoring ------------------------------------------------------
+    # scoring
 
     def _validate_and_score(
         self,
@@ -575,7 +541,7 @@ class MoveEngine:
         placed: list[tuple[str, int, int, bool]],
         blank_positions: set[tuple[int, int]],
     ) -> Move | None:
-        """Check all cross-words are valid and compute the total score."""
+        """Validate cross-words and compute the total score."""
         dr = 1 if direction == "V" else 0
         dc = 1 if direction == "H" else 0
         cross_dr = dc  # perpendicular
@@ -652,10 +618,7 @@ class MoveEngine:
         bonus: str,
         is_blank: bool = False,
     ) -> tuple[str | None, int]:
-        """
-        Build the perpendicular word at *(r, c)* created by placing
-        *placed_letter*.  Returns ``(word, score)`` or ``(None, 0)``.
-        """
+        """Build the perpendicular word formed at (r, c) and return (word, score)."""
         # Gather letters before
         before: list[str] = []
         nr, nc = r - cross_dr, c - cross_dc
@@ -699,21 +662,10 @@ class MoveEngine:
         return cross_word, score
 
 
-# ═══════════════════════════════════════════════════════════════════
-# SCREEN READER — OCR-based board detection
-# ═══════════════════════════════════════════════════════════════════
+# Screen reader (OCR)
 
 class ScreenReader:
-    """
-    Captures screen and reads the Crossplay board using OpenCV + Tesseract.
-
-    Pipeline:
-    1. Screenshot the screen (or accept a region / image file).
-    2. Detect the 15x15 grid via contour detection.
-    3. Classify each cell (occupied vs bonus) by HSV colour analysis.
-    4. OCR each occupied cell for its letter.
-    5. Locate and read the 7-tile rack below the board.
-    """
+    """Reads the Crossplay board from a screenshot using OpenCV + Tesseract."""
 
     def __init__(self):
         self.mss = self._try_import("mss")
@@ -733,7 +685,7 @@ class ScreenReader:
     def is_available(self) -> bool:
         return all(x is not None for x in (self.cv2, self.pytesseract, self.np))
 
-    # -- capture ------------------------------------------------------
+    # capture
 
     def capture_screen(self, region: dict | None = None):
         """Grab a screenshot; returns a PIL Image."""
@@ -745,7 +697,7 @@ class ScreenReader:
             shot = sct.grab(region or sct.monitors[0])
             return Image.frombytes("RGB", shot.size, shot.bgra, "raw", "BGRX")
 
-    # -- read board from image ----------------------------------------
+    # read board from image
 
     def read_board_from_image(self, img) -> tuple[Board, list[str]]:
         """
@@ -804,7 +756,7 @@ class ScreenReader:
         rack = self._read_rack(img_bgr, gray, hsv, board_rect)
         return board, rack
 
-    # -- helpers ------------------------------------------------------
+    # helpers
 
     def _find_board_region(self, img_bgr, gray) -> tuple[int, int, int, int] | None:
         cv2 = self.cv2
@@ -885,12 +837,10 @@ class ScreenReader:
         return rack
 
 
-# ═══════════════════════════════════════════════════════════════════
-# MANUAL INPUT — terminal-based board entry
-# ═══════════════════════════════════════════════════════════════════
+# Manual board input
 
 def manual_board_input() -> tuple[Board, list[str]]:
-    """Interactively input board state and rack from the terminal."""
+    """Interactive board + rack entry from the terminal."""
     board = Board()
     print("\n" + "=" * 60)
     print("  CROSSPLAY BOT -- Manual Board Entry")
@@ -957,9 +907,7 @@ def manual_board_input() -> tuple[Board, list[str]]:
     return board, list(rack_input)
 
 
-# ═══════════════════════════════════════════════════════════════════
-# GUI — Tkinter interface
-# ═══════════════════════════════════════════════════════════════════
+# GUI (tkinter)
 
 # Colour palette
 _BG = "#0f0f1a"
@@ -984,7 +932,7 @@ def _draw_board(
     highlight_tiles: list[tuple[str, int, int]] | None = None,
     blank_positions: set[tuple[int, int]] | None = None,
 ):
-    """Render the board onto *canvas*, optionally highlighting placed tiles."""
+    """Draw the board on the canvas, highlighting placed tiles if given."""
     canvas.delete("all")
     ht_map: dict[tuple[int, int], str] = {}
     if highlight_tiles:
@@ -1034,7 +982,7 @@ def _draw_board(
 
 
 def run_gui(dictionary: Dictionary) -> None:
-    """Launch the tkinter GUI."""
+    """Launch the GUI."""
     try:
         import tkinter as tk
         from tkinter import filedialog, messagebox
@@ -1051,7 +999,7 @@ def run_gui(dictionary: Dictionary) -> None:
     selected_cell: list[tuple[int, int] | None] = [None]
     results: list[Move] = []
 
-    # -- layout -------------------------------------------------------
+    # layout
 
     main_frame = tk.Frame(root, bg=_BG)
     main_frame.pack(padx=15, pady=15)
@@ -1087,7 +1035,7 @@ def run_gui(dictionary: Dictionary) -> None:
     status_label = tk.Label(main_frame, textvariable=status_var,
                             font=("Helvetica", 10), fg="#888", bg=_BG)
 
-    # -- callbacks ----------------------------------------------------
+    # callbacks
 
     def refresh():
         _draw_board(canvas, board)
@@ -1190,7 +1138,7 @@ def run_gui(dictionary: Dictionary) -> None:
         refresh()
         status_var.set(f"Board loaded from image  |  Rack: {''.join(rack)}")
 
-    # -- buttons ------------------------------------------------------
+    # buttons
 
     tk.Button(side, text="FIND BEST MOVE", bg=_ACCENT,
               command=find_moves, **btn_kw).pack(fill="x", pady=(10, 5))
@@ -1213,7 +1161,7 @@ def run_gui(dictionary: Dictionary) -> None:
 
     status_label.pack(pady=(10, 0))
 
-    # -- click-to-place -----------------------------------------------
+    # click-to-place
 
     def on_canvas_click(event):
         col = (event.x - 1) // _CELL_SIZE
@@ -1242,7 +1190,7 @@ def run_gui(dictionary: Dictionary) -> None:
 
     root.bind("<Key>", on_key)
 
-    # -- help label ---------------------------------------------------
+    # help label
 
     tk.Label(
         main_frame,
@@ -1261,12 +1209,10 @@ def run_gui(dictionary: Dictionary) -> None:
     root.mainloop()
 
 
-# ═══════════════════════════════════════════════════════════════════
-# CLI MODE
-# ═══════════════════════════════════════════════════════════════════
+# CLI mode
 
 def run_cli(dictionary: Dictionary) -> None:
-    """Run the bot in terminal mode."""
+    """Run in terminal mode."""
     engine = MoveEngine(dictionary)
     board, rack = manual_board_input()
 
@@ -1311,9 +1257,7 @@ def run_cli(dictionary: Dictionary) -> None:
     print()
 
 
-# ═══════════════════════════════════════════════════════════════════
-# MAIN
-# ═══════════════════════════════════════════════════════════════════
+# Entry point
 
 def main() -> None:
     parser = argparse.ArgumentParser(
