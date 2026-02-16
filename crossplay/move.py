@@ -9,7 +9,7 @@ class Move:
     __slots__ = (
         "word", "row", "col", "direction", "score",
         "tiles_used", "cross_words", "is_sweep", "blank_positions",
-        "leave_score", "equity",
+        "leave_score", "equity", "sim_score", "sim_equity",
     )
 
     def __init__(
@@ -25,6 +25,8 @@ class Move:
         blank_positions: set[tuple[int, int]] | None = None,
         leave_score: float = 0.0,
         equity: float = 0.0,
+        sim_score: float | None = None,
+        sim_equity: float | None = None,
     ):
         self.word = word
         self.row = row
@@ -37,6 +39,8 @@ class Move:
         self.blank_positions = blank_positions or set()
         self.leave_score = leave_score  # heuristic value of remaining rack
         self.equity = equity            # score + leave_score
+        self.sim_score = sim_score      # score - avg opponent best (Monte Carlo)
+        self.sim_equity = sim_equity    # sim_score + leave_score
 
     def __repr__(self) -> str:
         sweep = " +SWEEP!" if self.is_sweep else ""

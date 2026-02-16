@@ -7,6 +7,8 @@ from crossplay.board import Board
 from crossplay.move import Move
 from crossplay.engine import MoveEngine
 from crossplay.leave import evaluate_leave
+from crossplay.bag import remaining_tiles, TILE_DISTRIBUTION
+from crossplay.simulation import evaluate_candidates, simulate_move
 from crossplay.ocr import ScreenReader
 
 __all__ = [
@@ -15,12 +17,16 @@ __all__ = [
     "BONUS_GRID",
     "SWEEP_BONUS",
     "CENTER",
+    "TILE_DISTRIBUTION",
     "Board",
     "Dictionary",
     "Move",
     "MoveEngine",
     "ScreenReader",
     "evaluate_leave",
+    "evaluate_candidates",
+    "remaining_tiles",
+    "simulate_move",
     "Trie",
     "TrieNode",
 ]

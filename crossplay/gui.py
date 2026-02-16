@@ -11,6 +11,7 @@ from crossplay.dictionary import Dictionary
 from crossplay.engine import MoveEngine
 from crossplay.move import Move
 from crossplay.ocr import ScreenReader
+from crossplay.simulation import evaluate_candidates
 
 # Colour palette
 _BG = "#0f0f1a"
@@ -226,16 +227,17 @@ def run_gui(dictionary: Dictionary) -> None:
     )
     blank_mode_cb.pack(anchor="w", pady=(5, 2))
 
-    # Strategic mode toggle (leave evaluation)
-    strategic_var = tk.BooleanVar(value=False)
-    strategic_cb = tk.Checkbutton(
-        side, text="Strategic Mode (leave eval)",
-        variable=strategic_var,
-        font=("Helvetica", 10, "bold"), fg="#16a34a", bg=_BG,
-        selectcolor="#1a1a2e", activebackground=_BG, activeforeground="#16a34a",
-        cursor="hand2",
-    )
-    strategic_cb.pack(anchor="w", pady=(0, 10))
+    # Simulation trial count
+    sim_count_frame = tk.Frame(side, bg=_BG)
+    sim_count_frame.pack(anchor="w", pady=(0, 10))
+    tk.Label(sim_count_frame, text="Sims/move:",
+             font=("Helvetica", 9), fg="#888", bg=_BG).pack(side="left")
+    sim_count_var = tk.StringVar(value="50")
+    sim_count_entry = tk.Entry(sim_count_frame, textvariable=sim_count_var,
+                                font=("Courier", 10), width=5,
+                                bg="#1a1a2e", fg=_FG, insertbackground=_FG,
+                                relief="flat")
+    sim_count_entry.pack(side="left", padx=(4, 0))
 
     def _make_button(parent, text, bg_color, fg_color, command, pady=(0, 0)):
         """Create a styled button using a Frame+Label to bypass macOS Aqua theming."""
@@ -282,10 +284,35 @@ def run_gui(dictionary: Dictionary) -> None:
         root.update()
 
         t0 = time.time()
-        use_strat = strategic_var.get()
         best = engine.find_best_moves(board, list(rack_str), top_n=15,
-                                      use_leave_eval=use_strat)
-        elapsed = time.time() - t0
+                                      use_leave_eval=True)
+
+        # Monte Carlo simulation on top candidates
+        if best:
+            try:
+                n_sims = max(10, min(500, int(sim_count_var.get())))
+            except ValueError:
+                n_sims = 50
+            sim_candidates = best[:10]
+            status_var.set(
+                f"Simulating {len(sim_candidates)} moves × {n_sims} trials..."
+            )
+            root.update()
+
+            def _sim_progress(done, total):
+                status_var.set(
+                    f"Simulating move {done}/{total}..."
+                )
+                root.update()
+
+            sim_candidates = evaluate_candidates(
+                engine, board, sim_candidates, list(rack_str),
+                n_simulations=n_sims,
+                progress_callback=_sim_progress,
+            )
+            best = sim_candidates
+
+        elapsed_total = time.time() - t0
 
         nonlocal results
         results = list(best)
@@ -300,28 +327,22 @@ def run_gui(dictionary: Dictionary) -> None:
         for m in best:
             sweep = " *SWEEP" if m.is_sweep else ""
             arrow = ">" if m.direction == "H" else "v"
-            if use_strat:
-                eq_str = f"  eq{m.equity:>+6.1f}"
-                results_list.insert(
-                    tk.END,
-                    f"{m.score:>3}pts{eq_str}  {m.word:<10} ({m.row},{m.col}){arrow}{sweep}",
-                )
-            else:
-                results_list.insert(
-                    tk.END,
-                    f"{m.score:>3}pts  {m.word:<12} ({m.row},{m.col}){arrow}{sweep}",
-                )
+            sim_eq = f"  sim{m.sim_equity:>+6.1f}" if m.sim_equity is not None else ""
+            results_list.insert(
+                tk.END,
+                f"{m.score:>3}pts{sim_eq}  {m.word:<9} ({m.row},{m.col}){arrow}{sweep}",
+            )
         results_list.selection_set(0)
         _highlight_result(0)
-        if use_strat:
+        if best[0].sim_equity is not None:
             status_var.set(
-                f"Found {len(best)} moves in {elapsed:.2f}s  |  "
-                f"Best equity: {best[0].word} = {best[0].equity:+.1f} "
-                f"({best[0].score}pts {best[0].leave_score:+.1f} leave)"
+                f"Found {len(best)} moves in {elapsed_total:.1f}s  |  "
+                f"Best: {best[0].word} = {best[0].score}pts  "
+                f"sim_eq={best[0].sim_equity:+.1f}"
             )
         else:
             status_var.set(
-                f"Found {len(best)} moves in {elapsed:.2f}s  |  "
+                f"Found {len(best)} moves in {elapsed_total:.1f}s  |  "
                 f"Best: {best[0].word} = {best[0].score} pts"
             )
 
@@ -496,8 +517,13 @@ def run_gui(dictionary: Dictionary) -> None:
 
     rack_entry.bind("<FocusIn>", on_rack_focus_in)
 
+    def on_sim_focus_in(event):
+        selected_cell[0] = None
+
+    sim_count_entry.bind("<FocusIn>", on_sim_focus_in)
+
     def on_key(event):
-        if event.widget is rack_entry:
+        if event.widget in (rack_entry, sim_count_entry):
             return
         if selected_cell[0] is None:
             return
