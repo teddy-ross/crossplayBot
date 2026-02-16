@@ -1009,10 +1009,19 @@ def run_gui(dictionary: Dictionary) -> None:
     root.title("Crossplay Engine -- Best Move Finder")
     root.configure(bg=_BG)
 
-    board = Board()
     engine = MoveEngine(dictionary)
     selected_cell: list[tuple[int, int] | None] = [None]
-    results: list[Move] = []
+    highlighted_idx: list[int | None] = [None]  # track currently shown move
+
+    # Per-tab game state
+    NUM_TABS = 3
+    game_states: list[dict] = [
+        {"board": Board(), "rack": "", "results": [], "highlighted": None}
+        for _ in range(NUM_TABS)
+    ]
+    active_tab: list[int] = [0]
+    board = game_states[0]["board"]
+    results: list[Move] = game_states[0]["results"]
 
     # layout
 
@@ -1021,6 +1030,68 @@ def run_gui(dictionary: Dictionary) -> None:
 
     tk.Label(main_frame, text="CROSSPLAY ENGINE",
              font=("Helvetica", 22, "bold"), fg=_ACCENT, bg=_BG).pack(pady=(0, 10))
+
+    # Tab bar
+    tab_bar = tk.Frame(main_frame, bg=_BG)
+    tab_bar.pack(fill="x", pady=(0, 8))
+    tab_buttons: list[tk.Label] = []
+    _TAB_ACTIVE_BG = "#7c3aed"
+    _TAB_INACTIVE_BG = "#1a1a2e"
+    _TAB_ACTIVE_FG = "#fff"
+    _TAB_INACTIVE_FG = "#888"
+
+    def _save_current_tab():
+        """Persist current UI state into the active tab's slot."""
+        idx = active_tab[0]
+        game_states[idx]["rack"] = rack_var.get()
+        game_states[idx]["highlighted"] = highlighted_idx[0]
+
+    def _switch_tab(idx: int):
+        nonlocal board, results
+        if idx == active_tab[0]:
+            return
+        _save_current_tab()
+        active_tab[0] = idx
+        board = game_states[idx]["board"]
+        results = game_states[idx]["results"]
+        rack_var.set(game_states[idx]["rack"])
+        highlighted_idx[0] = game_states[idx]["highlighted"]
+        selected_cell[0] = None
+        # Refresh results list
+        results_list.delete(0, tk.END)
+        for m in results:
+            sweep = " *SWEEP" if m.is_sweep else ""
+            arrow = ">" if m.direction == "H" else "v"
+            results_list.insert(
+                tk.END,
+                f"{m.score:>3}pts  {m.word:<12} ({m.row},{m.col}){arrow}{sweep}",
+            )
+        if highlighted_idx[0] is not None and 0 <= highlighted_idx[0] < len(results):
+            results_list.selection_set(highlighted_idx[0])
+            _highlight_result(highlighted_idx[0])
+        else:
+            _draw_board(canvas, board)
+        _update_tab_styles()
+        status_var.set(f"Switched to Game {idx + 1}.")
+
+    def _update_tab_styles():
+        for i, btn in enumerate(tab_buttons):
+            if i == active_tab[0]:
+                btn.configure(bg=_TAB_ACTIVE_BG, fg=_TAB_ACTIVE_FG)
+            else:
+                btn.configure(bg=_TAB_INACTIVE_BG, fg=_TAB_INACTIVE_FG)
+
+    for i in range(NUM_TABS):
+        lbl = tk.Label(
+            tab_bar, text=f"  Game {i + 1}  ",
+            font=("Helvetica", 11, "bold"), cursor="hand2",
+            bg=_TAB_ACTIVE_BG if i == 0 else _TAB_INACTIVE_BG,
+            fg=_TAB_ACTIVE_FG if i == 0 else _TAB_INACTIVE_FG,
+            padx=12, pady=4,
+        )
+        lbl.pack(side="left", padx=(0, 4))
+        lbl.bind("<Button-1>", lambda e, idx=i: _switch_tab(idx))
+        tab_buttons.append(lbl)
 
     board_frame = tk.Frame(main_frame, bg=_BG)
     board_frame.pack()
@@ -1109,8 +1180,10 @@ def run_gui(dictionary: Dictionary) -> None:
         best = engine.find_best_moves(board, list(rack_str), top_n=15)
         elapsed = time.time() - t0
 
-        results.clear()
-        results.extend(best)
+        nonlocal results
+        results = list(best)
+        game_states[active_tab[0]]["results"] = results
+        highlighted_idx[0] = None
         results_list.delete(0, tk.END)
 
         if not best:
@@ -1136,8 +1209,6 @@ def run_gui(dictionary: Dictionary) -> None:
             m = results[idx]
             _draw_board(canvas, board, m.tiles_used, m.blank_positions)
 
-    highlighted_idx: list[int | None] = [None]  # track currently shown move
-
     def on_result_select(event):
         sel = results_list.curselection()
         if sel:
@@ -1153,9 +1224,12 @@ def run_gui(dictionary: Dictionary) -> None:
                 _highlight_result(idx)
 
     def clear_board():
-        nonlocal board
+        nonlocal board, results
         board = Board()
-        results.clear()
+        game_states[active_tab[0]]["board"] = board
+        results = []
+        game_states[active_tab[0]]["results"] = results
+        highlighted_idx[0] = None
         results_list.delete(0, tk.END)
         refresh()
         status_var.set("Board cleared.")
@@ -1179,6 +1253,7 @@ def run_gui(dictionary: Dictionary) -> None:
             img = reader.capture_screen()
             nonlocal board
             board, rack = reader.read_board_from_image(img)
+            game_states[active_tab[0]]["board"] = board
             rack_var.set("".join(rack))
             refresh()
             status_var.set(
@@ -1202,6 +1277,7 @@ def run_gui(dictionary: Dictionary) -> None:
         img = Image.open(path)
         nonlocal board
         board, rack = reader.read_board_from_image(img)
+        game_states[active_tab[0]]["board"] = board
         rack_var.set("".join(rack))
         refresh()
         status_var.set(f"Board loaded from image  |  Rack: {''.join(rack)}")
@@ -1228,6 +1304,21 @@ def run_gui(dictionary: Dictionary) -> None:
     results_list.bind("<<ListboxSelect>>", on_result_select)
 
     status_label.pack(pady=(10, 0))
+
+    # help label (in sidebar, below results)
+    tk.Label(
+        side,
+        text=(
+            "Instructions:\n"
+            "  Game 1/2/3 tabs to track multiple games\n"
+            "  Click a cell then type a letter to place\n"
+            "  Toggle 'Mystery Tile' for 0-point blanks\n"
+            "  Enter rack letters above (? for blanks)\n"
+            "  Click 'Find Best Move' to compute\n"
+            "  Click results to highlight on board"
+        ),
+        font=("Helvetica", 9), fg="#555", bg=_BG, justify="left",
+    ).pack(pady=(5, 0), anchor="w")
 
     # click-to-place
 
@@ -1271,22 +1362,6 @@ def run_gui(dictionary: Dictionary) -> None:
             status_var.set(f"Removed tile at ({r},{c}).")
 
     root.bind("<Key>", on_key)
-
-    # help label
-
-    tk.Label(
-        main_frame,
-        text=(
-            "Instructions:\n"
-            "  Click a cell then type a letter to place a tile\n"
-            "  Toggle 'Mystery Tile' to place 0-point blanks\n"
-            "  Enter your rack letters above (? for blanks)\n"
-            "  Click 'Find Best Move' to compute\n"
-            "  Or capture your screen / load a screenshot\n"
-            "  Click results to highlight moves on board"
-        ),
-        font=("Helvetica", 9), fg="#555", bg=_BG, justify="left",
-    ).pack(pady=(10, 0), anchor="w")
 
     refresh()
     root.mainloop()
