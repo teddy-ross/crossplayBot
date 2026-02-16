@@ -1,6 +1,6 @@
 # NYT Crossplay Bot — Screen-Reading Best-Move Finder
 
-A Python bot that reads your NYT Crossplay game screen via OCR, analyzes the board state, and computes the highest-scoring legal move using a trie-guided move-generation engine.
+A Python bot that reads your NYT Crossplay game screen via OCR, analyzes the board state, and computes the highest-scoring legal move using a trie-guided move-generation engine. I built this to finally be able to defeat my girlfriend in Crossplay.
 
 ## Features
 
