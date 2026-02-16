@@ -105,6 +105,7 @@ def run_gui(dictionary: Dictionary) -> None:
     engine = MoveEngine(dictionary)
     selected_cell: list[tuple[int, int] | None] = [None]
     highlighted_idx: list[int | None] = [None]  # track currently shown move
+    typing_direction: list[str] = ["H"]  # "H" = right, "V" = down
 
     # Per-tab game state
     NUM_TABS = 3
@@ -405,6 +406,8 @@ def run_gui(dictionary: Dictionary) -> None:
             "Instructions:\n"
             "  Game 1/2/3 tabs to track multiple games\n"
             "  Click a cell then type a letter to place\n"
+            "  Enter = type → horizontal\n"
+            "  Shift+Enter = type ↓ vertical\n"
             "  Toggle 'Mystery Tile' for 0-point blanks\n"
             "  Enter rack letters above (? for blanks)\n"
             "  Click 'Find Best Move' to compute\n"
@@ -421,7 +424,8 @@ def run_gui(dictionary: Dictionary) -> None:
         if 0 <= row < BOARD_SIZE and 0 <= col < BOARD_SIZE:
             selected_cell[0] = (row, col)
             mode = " [MYSTERY]" if blank_mode_var.get() else ""
-            status_var.set(f"Selected ({row},{col}){mode} -- type a letter, or Del to remove.")
+            arrow = "→" if typing_direction[0] == "H" else "↓"
+            status_var.set(f"Selected ({row},{col}){mode} {arrow} -- type a letter, Enter/Shift+Enter to change direction.")
 
     canvas.bind("<Button-1>", on_canvas_click)
 
@@ -437,6 +441,15 @@ def run_gui(dictionary: Dictionary) -> None:
         if selected_cell[0] is None:
             return
         r, c = selected_cell[0]
+        # Enter = horizontal, Shift+Enter = vertical
+        if event.keysym == "Return":
+            if event.state & 0x1:  # Shift held
+                typing_direction[0] = "V"
+                status_var.set(f"Direction: ↓ vertical  |  Cell ({r},{c})")
+            else:
+                typing_direction[0] = "H"
+                status_var.set(f"Direction: → horizontal  |  Cell ({r},{c})")
+            return
         if event.char and event.char.upper() in string.ascii_uppercase:
             ch = event.char.upper()
             if blank_mode_var.get():
@@ -444,11 +457,19 @@ def run_gui(dictionary: Dictionary) -> None:
             else:
                 board.set(r, c, ch)
             refresh()
-            nc = c + 1
             tag = " (mystery)" if blank_mode_var.get() else ""
-            if nc < BOARD_SIZE:
-                selected_cell[0] = (r, nc)
-                status_var.set(f"Placed {ch}{tag} at ({r},{c}). Now at ({r},{nc}).")
+            arrow = "→" if typing_direction[0] == "H" else "↓"
+            # Advance cursor in the current typing direction
+            if typing_direction[0] == "H":
+                nc = c + 1
+                if nc < BOARD_SIZE:
+                    selected_cell[0] = (r, nc)
+                    status_var.set(f"Placed {ch}{tag} at ({r},{c}) {arrow}  Now at ({r},{nc}).")
+            else:
+                nr = r + 1
+                if nr < BOARD_SIZE:
+                    selected_cell[0] = (nr, c)
+                    status_var.set(f"Placed {ch}{tag} at ({r},{c}) {arrow}  Now at ({nr},{c}).")
         elif event.keysym in ("Delete", "BackSpace"):
             board.set(r, c, None)
             refresh()
