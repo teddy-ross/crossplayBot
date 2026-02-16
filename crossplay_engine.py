@@ -559,7 +559,10 @@ class MoveEngine:
             c = start_c + i * dc
             letter = word[i]
             # Blank tiles are always worth 0 points
-            is_blank = (r, c) in blank_positions
+            # Also check if the board cell is lowercase (mystery/blank tile)
+            board_letter = board.get(r, c)
+            is_board_blank = board_letter is not None and board_letter.islower()
+            is_blank = (r, c) in blank_positions or is_board_blank
             letter_val = 0 if is_blank else TILE_VALUES.get(letter, 0)
 
             if (r, c) in placed_set:
@@ -619,30 +622,35 @@ class MoveEngine:
         is_blank: bool = False,
     ) -> tuple[str | None, int]:
         """Build the perpendicular word formed at (r, c) and return (word, score)."""
-        # Gather letters before
-        before: list[str] = []
+        # Gather letters before (track raw case to detect board blanks)
+        before_raw: list[str] = []
         nr, nc = r - cross_dr, c - cross_dc
         while 0 <= nr < BOARD_SIZE and 0 <= nc < BOARD_SIZE and board.is_occupied(nr, nc):
-            before.append(board.get(nr, nc).upper())
+            before_raw.append(board.get(nr, nc))
             nr -= cross_dr
             nc -= cross_dc
-        before.reverse()
+        before_raw.reverse()
+        before = [ch.upper() for ch in before_raw]
 
-        # Gather letters after
-        after: list[str] = []
+        # Gather letters after (track raw case to detect board blanks)
+        after_raw: list[str] = []
         nr, nc = r + cross_dr, c + cross_dc
         while 0 <= nr < BOARD_SIZE and 0 <= nc < BOARD_SIZE and board.is_occupied(nr, nc):
-            after.append(board.get(nr, nc).upper())
+            after_raw.append(board.get(nr, nc))
             nr += cross_dr
             nc += cross_dc
+        after = [ch.upper() for ch in after_raw]
 
         if not before and not after:
             return None, 0
 
         cross_word = "".join(before) + placed_letter + "".join(after)
 
-        # Score cross-word (blank tiles are worth 0)
-        score = sum(TILE_VALUES.get(ch, 0) for ch in before)
+        # Score cross-word (blank / mystery tiles on board are worth 0)
+        score = sum(
+            0 if raw.islower() else TILE_VALUES.get(raw.upper(), 0)
+            for raw in before_raw
+        )
 
         letter_val = 0 if is_blank else TILE_VALUES.get(placed_letter, 0)
         cw_mult = 1
@@ -657,7 +665,10 @@ class MoveEngine:
         elif bonus == "TW":
             cw_mult = 3
 
-        score += sum(TILE_VALUES.get(ch, 0) for ch in after)
+        score += sum(
+            0 if raw.islower() else TILE_VALUES.get(raw.upper(), 0)
+            for raw in after_raw
+        )
         score *= cw_mult
         return cross_word, score
 
@@ -950,10 +961,13 @@ def _draw_board(
 
             letter = board.get(r, c)
             is_hl = (r, c) in ht_map
+            is_board_blank = letter is not None and letter.islower()
 
             # Determine colours
             if is_hl:
                 bg, fg, outline, olw = _HIGHLIGHT, "#fff", "#fca", 2
+            elif letter and is_board_blank:
+                bg, fg, outline, olw = "#d4c4a8", _CELL_TILE_FG, "#7c3aed", 2
             elif letter:
                 bg, fg, outline, olw = _CELL_TILE, _CELL_TILE_FG, "#0a0a14", 1
             else:
@@ -968,7 +982,7 @@ def _draw_board(
             if display:
                 canvas.create_text(cx, cy - 2, text=display,
                                    font=("Helvetica", 14, "bold"), fill=fg)
-                pts = 0 if (r, c) in blanks else TILE_VALUES.get(display, 0)
+                pts = 0 if (is_board_blank or (r, c) in blanks) else TILE_VALUES.get(display, 0)
                 sub_fg = "#fcc" if is_hl else "#888"
                 canvas.create_text(x2 - 6, y2 - 5, text=str(pts),
                                    font=("Helvetica", 7), fill=sub_fg)
@@ -1021,14 +1035,49 @@ def run_gui(dictionary: Dictionary) -> None:
     tk.Label(side, text="YOUR RACK", font=("Helvetica", 11, "bold"),
              fg=_FG, bg=_BG).pack(anchor="w")
     rack_var = tk.StringVar()
-    tk.Entry(side, textvariable=rack_var, font=("Courier", 18, "bold"),
+    rack_entry = tk.Entry(side, textvariable=rack_var, font=("Courier", 18, "bold"),
              width=10, bg="#1a1a2e", fg=_FG, insertbackground=_FG,
-             relief="flat", justify="center").pack(fill="x", pady=(2, 10))
+             relief="flat", justify="center")
+    rack_entry.pack(fill="x", pady=(2, 10))
     tk.Label(side, text="Use ? for blank tiles",
              font=("Helvetica", 9), fg="#666", bg=_BG).pack(anchor="w")
 
-    btn_kw = dict(font=("Helvetica", 11, "bold"), fg="#fff",
-                  relief="flat", cursor="hand2", pady=6)
+    # Mystery tile toggle
+    blank_mode_var = tk.BooleanVar(value=False)
+    blank_mode_cb = tk.Checkbutton(
+        side, text="Mystery Tile (0 pts)",
+        variable=blank_mode_var,
+        font=("Helvetica", 10, "bold"), fg="#7c3aed", bg=_BG,
+        selectcolor="#1a1a2e", activebackground=_BG, activeforeground="#7c3aed",
+        cursor="hand2",
+    )
+    blank_mode_cb.pack(anchor="w", pady=(5, 10))
+
+    def _make_button(parent, text, bg_color, fg_color, command, pady=(0, 0)):
+        """Create a styled button using a Frame+Label to bypass macOS Aqua theming."""
+        frame = tk.Frame(parent, bg=bg_color, cursor="hand2")
+        frame.pack(fill="x", pady=pady)
+        label = tk.Label(frame, text=text, bg=bg_color, fg=fg_color,
+                         font=("Helvetica", 11, "bold"), pady=8)
+        label.pack(fill="x")
+        for widget in (frame, label):
+            widget.bind("<Button-1>", lambda e: command())
+            widget.bind("<Enter>", lambda e, f=frame, l=label: (
+                f.configure(bg=_lighten(bg_color)),
+                l.configure(bg=_lighten(bg_color)),
+            ))
+            widget.bind("<Leave>", lambda e, f=frame, l=label, c=bg_color: (
+                f.configure(bg=c),
+                l.configure(bg=c),
+            ))
+        return frame
+
+    def _lighten(hex_color: str, amount: int = 30) -> str:
+        """Lighten a hex color for hover effect."""
+        r = min(255, int(hex_color[1:3], 16) + amount)
+        g = min(255, int(hex_color[3:5], 16) + amount)
+        b = min(255, int(hex_color[5:7], 16) + amount)
+        return f"#{r:02x}{g:02x}{b:02x}"
 
     # Status
     status_var = tk.StringVar(value="Click board cells to place tiles, then Find Best Move.")
@@ -1140,14 +1189,14 @@ def run_gui(dictionary: Dictionary) -> None:
 
     # buttons
 
-    tk.Button(side, text="FIND BEST MOVE", bg=_ACCENT,
-              command=find_moves, **btn_kw).pack(fill="x", pady=(10, 5))
-    tk.Button(side, text="Clear Board", bg="#dc2626",
-              command=clear_board, **btn_kw).pack(fill="x", pady=(0, 10))
-    tk.Button(side, text="Capture Screen (3s delay)", bg="#059669",
-              command=capture_screen, **btn_kw).pack(fill="x", pady=(0, 5))
-    tk.Button(side, text="Load Screenshot", bg="#2563eb",
-              command=load_image, **btn_kw).pack(fill="x", pady=(0, 15))
+    _make_button(side, "FIND BEST MOVE", "#7c3aed", "#e9d5ff",
+                 find_moves, pady=(10, 5))
+    _make_button(side, "Clear Board", "#4a1a2e", "#f9a8b8",
+                 clear_board, pady=(0, 10))
+    _make_button(side, "Capture Screen (3s delay)", "#134e4a", "#99f6e4",
+                 capture_screen, pady=(0, 5))
+    _make_button(side, "Load Screenshot", "#1e3a5f", "#93c5fd",
+                 load_image, pady=(0, 15))
 
     # Results list
     tk.Label(side, text="TOP MOVES", font=("Helvetica", 11, "bold"),
@@ -1168,21 +1217,35 @@ def run_gui(dictionary: Dictionary) -> None:
         row = (event.y - 1) // _CELL_SIZE
         if 0 <= row < BOARD_SIZE and 0 <= col < BOARD_SIZE:
             selected_cell[0] = (row, col)
-            status_var.set(f"Selected ({row},{col}) -- type a letter, or Del to remove.")
+            mode = " [MYSTERY]" if blank_mode_var.get() else ""
+            status_var.set(f"Selected ({row},{col}){mode} -- type a letter, or Del to remove.")
 
     canvas.bind("<Button-1>", on_canvas_click)
 
+    def on_rack_focus_in(event):
+        selected_cell[0] = None
+        status_var.set("Typing in rack...")
+
+    rack_entry.bind("<FocusIn>", on_rack_focus_in)
+
     def on_key(event):
+        if event.widget is rack_entry:
+            return
         if selected_cell[0] is None:
             return
         r, c = selected_cell[0]
         if event.char and event.char.upper() in string.ascii_uppercase:
-            board.set(r, c, event.char.upper())
+            ch = event.char.upper()
+            if blank_mode_var.get():
+                board.set(r, c, ch.lower())  # lowercase = mystery/blank tile (0 pts)
+            else:
+                board.set(r, c, ch)
             refresh()
             nc = c + 1
+            tag = " (mystery)" if blank_mode_var.get() else ""
             if nc < BOARD_SIZE:
                 selected_cell[0] = (r, nc)
-                status_var.set(f"Placed {event.char.upper()} at ({r},{c}). Now at ({r},{nc}).")
+                status_var.set(f"Placed {ch}{tag} at ({r},{c}). Now at ({r},{nc}).")
         elif event.keysym in ("Delete", "BackSpace"):
             board.set(r, c, None)
             refresh()
@@ -1197,6 +1260,7 @@ def run_gui(dictionary: Dictionary) -> None:
         text=(
             "Instructions:\n"
             "  Click a cell then type a letter to place a tile\n"
+            "  Toggle 'Mystery Tile' to place 0-point blanks\n"
             "  Enter your rack letters above (? for blanks)\n"
             "  Click 'Find Best Move' to compute\n"
             "  Or capture your screen / load a screenshot\n"
@@ -1274,9 +1338,8 @@ def main() -> None:
     if args.verbose:
         logging.getLogger().setLevel(logging.DEBUG)
 
-    print("=" * 60)
-    print("  CROSSPLAY ENGINE -- Best Move Finder")
-    print("=" * 60)
+    print("CROSSPLAY ENGINE -- Best Move Finder")
+
 
     dictionary = Dictionary(args.dict)
 
