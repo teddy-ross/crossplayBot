@@ -470,10 +470,23 @@ def run_gui(dictionary: Dictionary) -> None:
                 if nr < BOARD_SIZE:
                     selected_cell[0] = (nr, c)
                     status_var.set(f"Placed {ch}{tag} at ({r},{c}) {arrow}  Now at ({nr},{c}).")
-        elif event.keysym in ("Delete", "BackSpace"):
+        elif event.keysym == "Delete":
             board.set(r, c, None)
             refresh()
             status_var.set(f"Removed tile at ({r},{c}).")
+        elif event.keysym == "BackSpace":
+            # If current cell is empty, step back first then delete
+            if board.is_empty(r, c):
+                if typing_direction[0] == "H" and c > 0:
+                    c -= 1
+                    selected_cell[0] = (r, c)
+                elif typing_direction[0] == "V" and r > 0:
+                    r -= 1
+                    selected_cell[0] = (r, c)
+            board.set(r, c, None)
+            refresh()
+            arrow = "→" if typing_direction[0] == "H" else "↓"
+            status_var.set(f"Removed tile at ({r},{c}) {arrow}")
 
     root.bind("<Key>", on_key)
 
