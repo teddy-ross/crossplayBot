@@ -144,6 +144,17 @@ class MoveEngine:
         dr = 1 if direction == "V" else 0
         dc = 1 if direction == "H" else 0
 
+        # Reject if the word would extend into adjacent occupied cells
+        # (the actual word formed on the board would be longer than `length`)
+        before_r = start_r - dr
+        before_c = start_c - dc
+        if 0 <= before_r < BOARD_SIZE and 0 <= before_c < BOARD_SIZE and board.is_occupied(before_r, before_c):
+            return []
+        after_r = start_r + length * dr
+        after_c = start_c + length * dc
+        if 0 <= after_r < BOARD_SIZE and 0 <= after_c < BOARD_SIZE and board.is_occupied(after_r, after_c):
+            return []
+
         # Build positional info
         positions: list[tuple[int, int]] = []
         fixed: list[str | None] = []  # letter or None
