@@ -989,7 +989,8 @@ def _draw_board(
             else:
                 bonus = BONUS_GRID[r][c]
                 if bonus != ".":
-                    label = "★" if bonus == "*" else bonus
+                    _display_labels = {"DL": "2L", "TL": "3L", "DW": "2W", "TW": "3W", "*": "★"}
+                    label = _display_labels.get(bonus, bonus)
                     canvas.create_text(cx, cy, text=label,
                                        font=("Helvetica", 8, "bold"),
                                        fill="#fff" if bonus != "*" else "#555")
