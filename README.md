@@ -1,6 +1,6 @@
 # Crossplay Engine — Best-Move Finder
 
-A Python engine that reads your NYT Crossplay game screen via OCR, analyzes the board state, and computes the highest-scoring legal move using a trie-guided move-generation engine with Monte Carlo simulation. I built this to finally be able to defeat my girlfriend in Crossplay.
+A Python engine that reads your NYT Crossplay game screen via OCR, analyzes the board state, and computes the highest-scoring legal move using a trie-guided move-generation engine with Monte Carlo simulation. Cython-accelerated for speed. I built this engine to finally be able to defeat my girlfriend in Crossplay.
 
 ## Features
 
@@ -8,6 +8,7 @@ A Python engine that reads your NYT Crossplay game screen via OCR, analyzes the 
 - **Load Screenshot** — load a saved screenshot for analysis
 - **Manual Board Entry** — click cells in the GUI or type in terminal mode
 - **Full Move Engine** — finds all legal placements with cross-word validation (Appel-Jacobson style)
+- **Cython Acceleration** — engine and simulation hot paths compiled to C for ~2× speedup (falls back to pure Python automatically)
 - **Leave Evaluation** — heuristic scoring of remaining rack tiles (vowel/consonant balance, synergy combos, blank preservation)
 - **Monte Carlo Simulation** — simulates random opponent racks from the remaining tile pool to find moves that minimise the opponent's best response
 - **Crossplay-Accurate Scoring** — uses official Crossplay tile values (not Scrabble!), bonus squares, and the 40-point Sweep bonus
@@ -22,9 +23,13 @@ A Python engine that reads your NYT Crossplay game screen via OCR, analyzes the 
 
 ```bash
 # 1. Install dependencies
-python bootstrap.py
+pip install -r requirements.txt
 
-# 2. Run the engine
+# 2. Build Cython extensions (optional — falls back to pure Python)
+pip install cython
+python setup_cython.py build_ext --inplace
+
+# 3. Run the engine
 python crossplay_engine.py           # GUI mode (recommended)
 python crossplay_engine.py --manual  # Terminal mode (no GUI needed)
 ```
@@ -43,9 +48,8 @@ pip install -r requirements.txt
 - **Windows:** Download from [UB Mannheim](https://github.com/UB-Mannheim/tesseract/wiki)
 
 ### Word Dictionary
-The engine needs a word list file. The setup script will try to create one automatically. For best results, download a **TWL06** or **SOWPODS/NWL23** word list and save it as `dictionary.txt` in the project directory. Crossplay uses the NASPA Word List 2023 (NWL23).
+The engine needs a word list file saved as `dictionary.txt` in the project directory. For best results, use a **TWL06** or **SOWPODS/NWL23** word list. Crossplay uses the NASPA Word List 2023 (NWL23).
 
-## How It Works
 
 ### Architecture
 
