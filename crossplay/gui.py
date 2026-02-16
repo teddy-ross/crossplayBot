@@ -317,6 +317,36 @@ def run_gui(dictionary: Dictionary) -> None:
                 highlighted_idx[0] = idx
                 _highlight_result(idx)
 
+    def place_move():
+        """Place the currently highlighted move onto the board."""
+        idx = highlighted_idx[0]
+        if idx is None or idx < 0 or idx >= len(results):
+            status_var.set("Select a move from the results list first.")
+            return
+        m = results[idx]
+        for letter, r, c in m.tiles_used:
+            if (r, c) in m.blank_positions:
+                board.set(r, c, letter.lower())  # mystery / blank
+            else:
+                board.set(r, c, letter)
+        # Remove used tiles from rack
+        rack_letters = list(rack_var.get().upper())
+        for letter, _r, _c, is_blank in (
+            (lt, rr, cc, (rr, cc) in m.blank_positions)
+            for lt, rr, cc in m.tiles_used
+        ):
+            tile = "?" if is_blank else letter
+            if tile in rack_letters:
+                rack_letters.remove(tile)
+        rack_var.set("".join(rack_letters))
+        # Clear results since board changed
+        highlighted_idx[0] = None
+        results.clear()
+        game_states[active_tab[0]]["results"] = results
+        results_list.delete(0, tk.END)
+        refresh()
+        status_var.set(f"Placed {m.word} ({m.score} pts) on the board.")
+
     def clear_board():
         nonlocal board, results
         board = Board()
@@ -380,6 +410,8 @@ def run_gui(dictionary: Dictionary) -> None:
 
     _make_button(side, "FIND BEST MOVE", "#7c3aed", "#e9d5ff",
                  find_moves, pady=(10, 5))
+    _make_button(side, "Place Move on Board", "#065f46", "#6ee7b7",
+                 place_move, pady=(0, 5))
     _make_button(side, "Clear Board", "#4a1a2e", "#f9a8b8",
                  clear_board, pady=(0, 10))
     _make_button(side, "Capture Screen (3s delay)", "#134e4a", "#99f6e4",
@@ -411,7 +443,8 @@ def run_gui(dictionary: Dictionary) -> None:
             "  Toggle 'Mystery Tile' for 0-point blanks\n"
             "  Enter rack letters above (? for blanks)\n"
             "  Click 'Find Best Move' to compute\n"
-            "  Click results to highlight on board"
+            "  Click results to highlight on board\n"
+            "  'Place Move' to apply highlighted move"
         ),
         font=("Helvetica", 9), fg="#555", bg=_BG, justify="left",
     ).pack(pady=(5, 0), anchor="w")
@@ -423,6 +456,7 @@ def run_gui(dictionary: Dictionary) -> None:
         row = (event.y - 1) // _CELL_SIZE
         if 0 <= row < BOARD_SIZE and 0 <= col < BOARD_SIZE:
             selected_cell[0] = (row, col)
+            root.focus_set()  # pull focus away from rack entry
             mode = " [MYSTERY]" if blank_mode_var.get() else ""
             arrow = "→" if typing_direction[0] == "H" else "↓"
             status_var.set(f"Selected ({row},{col}){mode} {arrow} -- type a letter, Enter/Shift+Enter to change direction.")
