@@ -56,10 +56,10 @@ CENTER = 7  # 0-indexed center square
 
 # Crossplay tile point values (differs from Scrabble!)
 TILE_VALUES: dict[str, int] = {
-    'A': 1, 'B': 3, 'C': 3, 'D': 2, 'E': 1, 'F': 4, 'G': 4,
-    'H': 4, 'I': 1, 'J': 10, 'K': 5, 'L': 2, 'M': 3, 'N': 1,
+    'A': 1, 'B': 4, 'C': 3, 'D': 2, 'E': 1, 'F': 4, 'G': 4,
+    'H': 3, 'I': 1, 'J': 10, 'K': 6, 'L': 2, 'M': 3, 'N': 1,
     'O': 1, 'P': 3, 'Q': 10, 'R': 1, 'S': 1, 'T': 1, 'U': 2,
-    'V': 6, 'W': 5, 'X': 8, 'Y': 5, 'Z': 10, '?': 0,
+    'V': 6, 'W': 5, 'X': 8, 'Y': 4, 'Z': 10, '?': 0,
 }
 
 # Bonus square layout for Crossplay board
@@ -513,9 +513,12 @@ class MoveEngine:
                             word_chars.append(placed[p_idx][0])
                             p_idx += 1
                     word = "".join(word_chars)
+                    # Track which positions used a blank tile
+                    blank_positions = {(r, c) for _, r, c, is_blank in placed if is_blank}
 
                     move = self._validate_and_score(
-                        board, word, start_r, start_c, direction, fixed, placed
+                        board, word, start_r, start_c, direction, fixed, placed,
+                        blank_positions,
                     )
                     if move:
                         moves.append(move)
@@ -534,7 +537,7 @@ class MoveEngine:
                 for ri in range(len(rack_avail)):
                     tile = rack_avail[ri]
                     if tile == "?":
-                        # Blank: try every letter
+                        # Blank: try every letter (value stays 0)
                         for ch in string.ascii_uppercase:
                             if ch in tried:
                                 continue
@@ -542,7 +545,7 @@ class MoveEngine:
                             if child:
                                 tried.add(ch)
                                 rack_avail.pop(ri)
-                                _fill(idx + 1, child, placed + [(ch, r, c)])
+                                _fill(idx + 1, child, placed + [(ch, r, c, True)])
                                 rack_avail.insert(ri, tile)
                     else:
                         if tile in tried:
@@ -551,7 +554,7 @@ class MoveEngine:
                         if child:
                             tried.add(tile)
                             rack_avail.pop(ri)
-                            _fill(idx + 1, child, placed + [(tile, r, c)])
+                            _fill(idx + 1, child, placed + [(tile, r, c, False)])
                             rack_avail.insert(ri, tile)
 
         _fill(0, self.trie.root, [])
@@ -567,7 +570,8 @@ class MoveEngine:
         start_c: int,
         direction: str,
         fixed: list[str | None],
-        placed: list[tuple[str, int, int]],
+        placed: list[tuple[str, int, int, bool]],
+        blank_positions: set[tuple[int, int]],
     ) -> Move | None:
         """Check all cross-words are valid and compute the total score."""
         dr = 1 if direction == "V" else 0
@@ -580,13 +584,15 @@ class MoveEngine:
         total_cross = 0
         cross_words: list[str] = []
 
-        placed_set = {(r, c): letter for letter, r, c in placed}
+        placed_set = {(r, c): letter for letter, r, c, _ in placed}
 
         for i in range(len(word)):
             r = start_r + i * dr
             c = start_c + i * dc
             letter = word[i]
-            letter_val = TILE_VALUES.get(letter, 0)
+            # Blank tiles are always worth 0 points
+            is_blank = (r, c) in blank_positions
+            letter_val = 0 if is_blank else TILE_VALUES.get(letter, 0)
 
             if (r, c) in placed_set:
                 bonus = BONUS_GRID[r][c]
@@ -602,7 +608,9 @@ class MoveEngine:
                 main_score += letter_val * lm
 
                 # Cross-word validation
-                cw, cs = self._get_cross_word(board, r, c, letter, cross_dr, cross_dc, bonus)
+                cw, cs = self._get_cross_word(
+                    board, r, c, letter, cross_dr, cross_dc, bonus, is_blank,
+                )
                 if cw and len(cw) > 1:
                     if cw.upper() not in self.dict:
                         return None
@@ -625,7 +633,7 @@ class MoveEngine:
             col=start_c,
             direction=direction,
             score=total_score,
-            tiles_used=placed,
+            tiles_used=[(letter, r, c) for letter, r, c, _ in placed],
             cross_words=cross_words,
             is_sweep=is_sweep,
         )
@@ -639,6 +647,7 @@ class MoveEngine:
         cross_dr: int,
         cross_dc: int,
         bonus: str,
+        is_blank: bool = False,
     ) -> tuple[str | None, int]:
         """
         Build the perpendicular word at *(r, c)* created by placing
@@ -666,10 +675,10 @@ class MoveEngine:
 
         cross_word = "".join(before) + placed_letter + "".join(after)
 
-        # Score cross-word
+        # Score cross-word (blank tiles are worth 0)
         score = sum(TILE_VALUES.get(ch, 0) for ch in before)
 
-        letter_val = TILE_VALUES.get(placed_letter, 0)
+        letter_val = 0 if is_blank else TILE_VALUES.get(placed_letter, 0)
         cw_mult = 1
         if bonus == "DL":
             score += letter_val * 2
