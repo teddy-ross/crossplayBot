@@ -94,35 +94,6 @@ The bot needs a word list file. The setup script will try to create one automati
 5. **Screen Capture** — captures after a 3-second delay, reads board automatically
 6. **Load Screenshot** — open a saved image file for OCR analysis
 
-## Tips for Best OCR Accuracy
-
-- **Full screen the Crossplay app** before capturing
-- **Good lighting / high brightness** helps OCR accuracy
-- **Clean board state** — capture when it's clearly your turn
-- If OCR misreads, you can manually correct cells in the GUI
-- For consistent results, consider using the manual entry or screenshot loading
-
-## File Structure
-
-```
-crossplay-bot/
-├── crossplay_engine.py    # Main application (engine + GUI + OCR)
-├── bootstrap.py        # Dependency installer + dictionary downloader
-├── dictionary.txt      # Word list (created by bootstrap.py)
-├── requirements.txt    # pip requirements
-├── pyproject.toml      # PEP 621 project metadata
-├── .gitignore          # Git ignore rules
-└── README.md           # This file
-```
-
-## Limitations & Notes
-
-- OCR accuracy depends heavily on screen resolution, app styling, and image quality
-- The board bonus layout is approximated from available sources — verify against your game
-- Dictionary coverage depends on your word list file; NWL23 gives best accuracy
-- The move engine uses trie-guided recursive search; complex board states are handled efficiently
-- Blank tile (`?`) support works but increases search time (expands to 26 possible letters)
-
 ## License
 
 For personal/educational use. NYT Crossplay is a trademark of The New York Times Company.
