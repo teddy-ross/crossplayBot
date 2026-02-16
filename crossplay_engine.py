@@ -1036,6 +1036,13 @@ def run_gui(dictionary: Dictionary) -> None:
     tk.Label(side, text="YOUR RACK", font=("Helvetica", 11, "bold"),
              fg=_FG, bg=_BG).pack(anchor="w")
     rack_var = tk.StringVar()
+
+    def _limit_rack(*_args):
+        val = rack_var.get()
+        if len(val) > 7:
+            rack_var.set(val[:7])
+
+    rack_var.trace_add("write", _limit_rack)
     rack_entry = tk.Entry(side, textvariable=rack_var, font=("Courier", 18, "bold"),
              width=10, bg="#1a1a2e", fg=_FG, insertbackground=_FG,
              relief="flat", justify="center")
@@ -1129,10 +1136,21 @@ def run_gui(dictionary: Dictionary) -> None:
             m = results[idx]
             _draw_board(canvas, board, m.tiles_used, m.blank_positions)
 
+    highlighted_idx: list[int | None] = [None]  # track currently shown move
+
     def on_result_select(event):
         sel = results_list.curselection()
         if sel:
-            _highlight_result(sel[0])
+            idx = sel[0]
+            if highlighted_idx[0] == idx:
+                # Same item clicked again -- toggle off
+                highlighted_idx[0] = None
+                results_list.selection_clear(0, tk.END)
+                refresh()
+            else:
+                # Show this move on the board
+                highlighted_idx[0] = idx
+                _highlight_result(idx)
 
     def clear_board():
         nonlocal board
