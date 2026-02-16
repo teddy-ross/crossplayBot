@@ -1,6 +1,6 @@
-# NYT Crossplay Bot — Screen-Reading Best-Move Finder
+# Crossplay Engine — Best-Move Finder
 
-A Python bot that reads your NYT Crossplay game screen via OCR, analyzes the board state, and computes the highest-scoring legal move using a trie-guided move-generation engine. I built this to finally be able to defeat my girlfriend in Crossplay.
+A Python engine that reads your NYT Crossplay game screen via OCR, analyzes the board state, and computes the highest-scoring legal move using a trie-guided move-generation engine. I built this to finally be able to defeat my girlfriend in Crossplay.
 
 ## Features
 
@@ -19,8 +19,8 @@ A Python bot that reads your NYT Crossplay game screen via OCR, analyzes the boa
 python bootstrap.py
 
 # 2. Run the bot
-python crossplay_bot.py           # GUI mode (recommended)
-python crossplay_bot.py --manual  # Terminal mode (no GUI needed)
+python crossplay_engine.py           # GUI mode (recommended)
+python crossplay_engine.py --manual  # Terminal mode (no GUI needed)
 ```
 
 ## Requirements
@@ -106,7 +106,7 @@ The bot needs a word list file. The setup script will try to create one automati
 
 ```
 crossplay-bot/
-├── crossplay_bot.py    # Main application (engine + GUI + OCR)
+├── crossplay_engine.py    # Main application (engine + GUI + OCR)
 ├── bootstrap.py        # Dependency installer + dictionary downloader
 ├── dictionary.txt      # Word list (created by bootstrap.py)
 ├── requirements.txt    # pip requirements

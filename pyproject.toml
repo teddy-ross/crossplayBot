@@ -1,7 +1,7 @@
 [project]
-name = "crossplay-bot"
+name = "crossplay-engine"
 version = "1.0.0"
-description = "NYT Crossplay Bot — screen-reading best-move finder"
+description = "Crossplay Engine — screen-reading best-move finder"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
@@ -15,7 +15,7 @@ dependencies = [
 ]
 
 [project.scripts]
-crossplay-bot = "crossplay_bot:main"
+crossplay-engine = "crossplay_engine:main"
 
 [build-system]
 requires = ["setuptools>=68.0", "wheel"]

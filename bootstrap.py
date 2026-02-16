@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Setup script for Crossplay Bot.
+Setup script for Crossplay Engine.
 Downloads dependencies and a word dictionary.
 """
 
@@ -135,7 +135,7 @@ def download_dictionary():
 
 def main():
     print("=" * 50)
-    print("  Crossplay Bot — Setup")
+    print("  Crossplay Engine — Setup")
     print("=" * 50)
     print()
 
@@ -148,8 +148,8 @@ def main():
     print("=" * 50)
     print("  Setup complete! Run the bot:")
     print()
-    print("    python crossplay_bot.py          # GUI mode")
-    print("    python crossplay_bot.py --manual  # Terminal mode")
+    print("    python crossplay_engine.py          # GUI mode")
+    print("    python crossplay_engine.py --manual  # Terminal mode")
     print("=" * 50)
 
 
