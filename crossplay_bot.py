@@ -305,7 +305,7 @@ class Move:
 
     __slots__ = (
         "word", "row", "col", "direction", "score",
-        "tiles_used", "cross_words", "is_sweep",
+        "tiles_used", "cross_words", "is_sweep", "blank_positions",
     )
 
     def __init__(
@@ -318,6 +318,7 @@ class Move:
         tiles_used: list[tuple[str, int, int]],
         cross_words: list[str] | None = None,
         is_sweep: bool = False,
+        blank_positions: set[tuple[int, int]] | None = None,
     ):
         self.word = word
         self.row = row
@@ -327,6 +328,7 @@ class Move:
         self.tiles_used = tiles_used  # [(letter, row, col), ...]
         self.cross_words = cross_words or []
         self.is_sweep = is_sweep
+        self.blank_positions = blank_positions or set()
 
     def __repr__(self) -> str:
         sweep = " +SWEEP!" if self.is_sweep else ""
@@ -636,6 +638,7 @@ class MoveEngine:
             tiles_used=[(letter, r, c) for letter, r, c, _ in placed],
             cross_words=cross_words,
             is_sweep=is_sweep,
+            blank_positions=blank_positions,
         )
 
     def _get_cross_word(
@@ -975,12 +978,18 @@ _CELL_SIZE = 38
 _BOARD_PX = _CELL_SIZE * BOARD_SIZE
 
 
-def _draw_board(canvas, board: Board, highlight_tiles: list[tuple[str, int, int]] | None = None):
+def _draw_board(
+    canvas,
+    board: Board,
+    highlight_tiles: list[tuple[str, int, int]] | None = None,
+    blank_positions: set[tuple[int, int]] | None = None,
+):
     """Render the board onto *canvas*, optionally highlighting placed tiles."""
     canvas.delete("all")
     ht_map: dict[tuple[int, int], str] = {}
     if highlight_tiles:
         ht_map = {(r, c): letter for letter, r, c in highlight_tiles}
+    blanks = blank_positions or set()
 
     for r in range(BOARD_SIZE):
         for c in range(BOARD_SIZE):
@@ -1011,7 +1020,7 @@ def _draw_board(canvas, board: Board, highlight_tiles: list[tuple[str, int, int]
             if display:
                 canvas.create_text(cx, cy - 2, text=display,
                                    font=("Helvetica", 14, "bold"), fill=fg)
-                pts = TILE_VALUES.get(display, 0)
+                pts = 0 if (r, c) in blanks else TILE_VALUES.get(display, 0)
                 sub_fg = "#fcc" if is_hl else "#888"
                 canvas.create_text(x2 - 6, y2 - 5, text=str(pts),
                                    font=("Helvetica", 7), fill=sub_fg)
@@ -1119,7 +1128,8 @@ def run_gui(dictionary: Dictionary) -> None:
 
     def _highlight_result(idx: int):
         if 0 <= idx < len(results):
-            _draw_board(canvas, board, results[idx].tiles_used)
+            m = results[idx]
+            _draw_board(canvas, board, m.tiles_used, m.blank_positions)
 
     def on_result_select(event):
         sel = results_list.curselection()
