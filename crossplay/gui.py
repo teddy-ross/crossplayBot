@@ -8,10 +8,16 @@ import time
 from crossplay.board import Board
 from crossplay.constants import BOARD_SIZE, BONUS_GRID, TILE_VALUES
 from crossplay.dictionary import Dictionary
-from crossplay.engine import MoveEngine
+try:
+    from crossplay.engine_cy import MoveEngine
+except ImportError:
+    from crossplay.engine import MoveEngine
 from crossplay.move import Move
 from crossplay.ocr import ScreenReader
-from crossplay.simulation import evaluate_candidates
+try:
+    from crossplay.simulation_cy import evaluate_candidates
+except ImportError:
+    from crossplay.simulation import evaluate_candidates
 
 # Colour palette
 _BG = "#0f0f1a"

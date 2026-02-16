@@ -5,10 +5,16 @@ from crossplay.trie import Trie, TrieNode
 from crossplay.dictionary import Dictionary
 from crossplay.board import Board
 from crossplay.move import Move
-from crossplay.engine import MoveEngine
+try:
+    from crossplay.engine_cy import MoveEngine
+except ImportError:
+    from crossplay.engine import MoveEngine
 from crossplay.leave import evaluate_leave
 from crossplay.bag import remaining_tiles, TILE_DISTRIBUTION
-from crossplay.simulation import evaluate_candidates, simulate_move
+try:
+    from crossplay.simulation_cy import evaluate_candidates, simulate_move
+except ImportError:
+    from crossplay.simulation import evaluate_candidates, simulate_move
 from crossplay.ocr import ScreenReader
 
 __all__ = [

@@ -7,7 +7,10 @@ import time
 from crossplay.board import Board
 from crossplay.constants import BOARD_SIZE
 from crossplay.dictionary import Dictionary
-from crossplay.engine import MoveEngine
+try:
+    from crossplay.engine_cy import MoveEngine
+except ImportError:
+    from crossplay.engine import MoveEngine
 
 
 def manual_board_input() -> tuple[Board, list[str]]:
