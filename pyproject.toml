@@ -1,0 +1,22 @@
+[project]
+name = "crossplay-bot"
+version = "1.0.0"
+description = "NYT Crossplay Bot — screen-reading best-move finder"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+
+dependencies = [
+    "mss",
+    "Pillow",
+    "pytesseract",
+    "opencv-python",
+    "numpy",
+]
+
+[project.scripts]
+crossplay-bot = "crossplay_bot:main"
+
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
