@@ -7,6 +7,7 @@ import string
 from crossplay.board import Board
 from crossplay.constants import BOARD_SIZE, BONUS_GRID, CENTER, SWEEP_BONUS, TILE_VALUES
 from crossplay.dictionary import Dictionary
+from crossplay.leave import evaluate_leave
 from crossplay.move import Move
 from crossplay.trie import TrieNode
 
@@ -21,8 +22,18 @@ class MoveEngine:
 
     # public API
 
-    def find_best_moves(self, board: Board, rack: list[str], top_n: int = 10) -> list[Move]:
-        """Top N highest-scoring legal moves."""
+    def find_best_moves(
+        self,
+        board: Board,
+        rack: list[str],
+        top_n: int = 10,
+        use_leave_eval: bool = False,
+    ) -> list[Move]:
+        """Top N highest-scoring legal moves.
+
+        When *use_leave_eval* is True, moves are ranked by **equity**
+        (score + leave value) instead of raw score alone.
+        """
         all_moves = self._generate_all_moves(board, rack)
         # Deduplicate (same word + same position + same direction)
         seen: set[tuple[str, int, int, str]] = set()
@@ -32,7 +43,28 @@ class MoveEngine:
             if key not in seen:
                 seen.add(key)
                 unique.append(m)
-        unique.sort(key=lambda m: m.score, reverse=True)
+
+        if use_leave_eval:
+            rack_upper = [t.upper() for t in rack]
+            for m in unique:
+                used_tiles: list[str] = []
+                for letter, _r, _c in m.tiles_used:
+                    if (_r, _c) in m.blank_positions:
+                        used_tiles.append("?")
+                    else:
+                        used_tiles.append(letter.upper())
+                leave = list(rack_upper)
+                for t in used_tiles:
+                    if t in leave:
+                        leave.remove(t)
+                m.leave_score = evaluate_leave(leave)
+                m.equity = m.score + m.leave_score
+            unique.sort(key=lambda m: m.equity, reverse=True)
+        else:
+            for m in unique:
+                m.equity = float(m.score)
+            unique.sort(key=lambda m: m.score, reverse=True)
+
         return unique[:top_n]
 
     # move generation

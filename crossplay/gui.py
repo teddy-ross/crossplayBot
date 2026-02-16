@@ -224,7 +224,18 @@ def run_gui(dictionary: Dictionary) -> None:
         selectcolor="#1a1a2e", activebackground=_BG, activeforeground="#7c3aed",
         cursor="hand2",
     )
-    blank_mode_cb.pack(anchor="w", pady=(5, 10))
+    blank_mode_cb.pack(anchor="w", pady=(5, 2))
+
+    # Strategic mode toggle (leave evaluation)
+    strategic_var = tk.BooleanVar(value=False)
+    strategic_cb = tk.Checkbutton(
+        side, text="Strategic Mode (leave eval)",
+        variable=strategic_var,
+        font=("Helvetica", 10, "bold"), fg="#16a34a", bg=_BG,
+        selectcolor="#1a1a2e", activebackground=_BG, activeforeground="#16a34a",
+        cursor="hand2",
+    )
+    strategic_cb.pack(anchor="w", pady=(0, 10))
 
     def _make_button(parent, text, bg_color, fg_color, command, pady=(0, 0)):
         """Create a styled button using a Frame+Label to bypass macOS Aqua theming."""
@@ -271,7 +282,9 @@ def run_gui(dictionary: Dictionary) -> None:
         root.update()
 
         t0 = time.time()
-        best = engine.find_best_moves(board, list(rack_str), top_n=15)
+        use_strat = strategic_var.get()
+        best = engine.find_best_moves(board, list(rack_str), top_n=15,
+                                      use_leave_eval=use_strat)
         elapsed = time.time() - t0
 
         nonlocal results
@@ -287,16 +300,30 @@ def run_gui(dictionary: Dictionary) -> None:
         for m in best:
             sweep = " *SWEEP" if m.is_sweep else ""
             arrow = ">" if m.direction == "H" else "v"
-            results_list.insert(
-                tk.END,
-                f"{m.score:>3}pts  {m.word:<12} ({m.row},{m.col}){arrow}{sweep}",
-            )
+            if use_strat:
+                eq_str = f"  eq{m.equity:>+6.1f}"
+                results_list.insert(
+                    tk.END,
+                    f"{m.score:>3}pts{eq_str}  {m.word:<10} ({m.row},{m.col}){arrow}{sweep}",
+                )
+            else:
+                results_list.insert(
+                    tk.END,
+                    f"{m.score:>3}pts  {m.word:<12} ({m.row},{m.col}){arrow}{sweep}",
+                )
         results_list.selection_set(0)
         _highlight_result(0)
-        status_var.set(
-            f"Found {len(best)} moves in {elapsed:.2f}s  |  "
-            f"Best: {best[0].word} = {best[0].score} pts"
-        )
+        if use_strat:
+            status_var.set(
+                f"Found {len(best)} moves in {elapsed:.2f}s  |  "
+                f"Best equity: {best[0].word} = {best[0].equity:+.1f} "
+                f"({best[0].score}pts {best[0].leave_score:+.1f} leave)"
+            )
+        else:
+            status_var.set(
+                f"Found {len(best)} moves in {elapsed:.2f}s  |  "
+                f"Best: {best[0].word} = {best[0].score} pts"
+            )
 
     def _highlight_result(idx: int):
         if 0 <= idx < len(results):

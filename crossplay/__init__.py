@@ -6,6 +6,7 @@ from crossplay.dictionary import Dictionary
 from crossplay.board import Board
 from crossplay.move import Move
 from crossplay.engine import MoveEngine
+from crossplay.leave import evaluate_leave
 from crossplay.ocr import ScreenReader
 
 __all__ = [
@@ -19,6 +20,7 @@ __all__ = [
     "Move",
     "MoveEngine",
     "ScreenReader",
+    "evaluate_leave",
     "Trie",
     "TrieNode",
 ]

@@ -9,6 +9,7 @@ class Move:
     __slots__ = (
         "word", "row", "col", "direction", "score",
         "tiles_used", "cross_words", "is_sweep", "blank_positions",
+        "leave_score", "equity",
     )
 
     def __init__(
@@ -22,6 +23,8 @@ class Move:
         cross_words: list[str] | None = None,
         is_sweep: bool = False,
         blank_positions: set[tuple[int, int]] | None = None,
+        leave_score: float = 0.0,
+        equity: float = 0.0,
     ):
         self.word = word
         self.row = row
@@ -32,8 +35,11 @@ class Move:
         self.cross_words = cross_words or []
         self.is_sweep = is_sweep
         self.blank_positions = blank_positions or set()
+        self.leave_score = leave_score  # heuristic value of remaining rack
+        self.equity = equity            # score + leave_score
 
     def __repr__(self) -> str:
         sweep = " +SWEEP!" if self.is_sweep else ""
         arrow = "→" if self.direction == "H" else "↓"
-        return f"{self.word} at ({self.row},{self.col}) {arrow} = {self.score} pts{sweep}"
+        eq = f"  equity={self.equity:+.1f}" if self.equity != self.score else ""
+        return f"{self.word} at ({self.row},{self.col}) {arrow} = {self.score} pts{sweep}{eq}"
