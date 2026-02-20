@@ -115,7 +115,7 @@ def run_gui(dictionary: Dictionary) -> None:
     typing_direction: list[str] = ["H"]  # "H" = right, "V" = down
 
     # Per-tab game state
-    NUM_TABS = 3
+    NUM_TABS = 5
     game_states: list[dict] = [
         {"board": Board(), "rack": "", "results": [], "highlighted": None}
         for _ in range(NUM_TABS)
@@ -296,7 +296,7 @@ def run_gui(dictionary: Dictionary) -> None:
         # Monte Carlo simulation on top candidates
         if best:
             try:
-                n_sims = max(10, min(500, int(sim_count_var.get())))
+                n_sims = max(10, min(5000, int(sim_count_var.get())))
             except ValueError:
                 n_sims = 50
             sim_candidates = best[:10]
@@ -490,7 +490,7 @@ def run_gui(dictionary: Dictionary) -> None:
         side,
         text=(
             "Instructions:\n"
-            "  Game 1/2/3 tabs to track multiple games\n"
+            "  Game 1–5 tabs to track multiple games\n"
             "  Click a cell then type a letter to place\n"
             "  Enter = type → horizontal\n"
             "  Shift+Enter = type ↓ vertical\n"

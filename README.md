@@ -13,7 +13,7 @@ A Python engine that reads your NYT Crossplay game screen via OCR, analyzes the 
 - **Monte Carlo Simulation** — simulates random opponent racks from the remaining tile pool to find moves that minimise the opponent's best response
 - **Crossplay-Accurate Scoring** — uses official Crossplay tile values (not Scrabble!), bonus squares, and the 40-point Sweep bonus
 - **Mystery Tiles** — place 0-point blank tiles on the board with visual distinction
-- **3 Game Tabs** — track up to 3 games simultaneously with independent board/rack/results state
+- **5 Game Tabs** — track up to 5 games simultaneously with independent board/rack/results state
 - **Place Move on Board** — apply a highlighted engine result directly to the board
 - **Directional Typing** — Enter for horizontal →, Shift+Enter for vertical ↓, with auto-advance cursor
 - **Top 10 Results** — ranked by simulation equity with visual board highlighting
@@ -115,7 +115,7 @@ Moves are ranked by **sim_equity** = (your score − avg opponent best response)
 6. **Find Best Move** — runs the engine + Monte Carlo simulation
 7. **Browse results** — click any result to see it highlighted on the board; click again to toggle off
 8. **Place Move on Board** — applies the highlighted move's tiles to the board and updates your rack
-9. **Game tabs** — switch between 3 independent game states
+9. **Game tabs** — switch between 5 independent game states
 10. **Screen Capture** — captures after a 3-second delay, reads board via OCR
 11. **Load Screenshot** — open a saved image file for OCR analysis
 
